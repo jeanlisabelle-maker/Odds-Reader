@@ -1,0 +1,33 @@
+{
+  "name": "Odds Reader \u2014 Market Analysis",
+  "short_name": "Odds Reader",
+  "description": "Read the market from the odds you paste. Offline, no predictions.",
+  "start_url": "./Odds-Reader-TEST-12.html",
+  "display": "standalone",
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f1117'/><rect x='14' y='14' width='72' height='72' rx='16' fill='%2300ff88' fill-opacity='0.15' stroke='%2300ff88' stroke-opacity='0.28'/><path d='M30 55 L45 40 L55 50 L70 30' stroke='%2300ff88' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f1117'/><rect x='14' y='14' width='72' height='72' rx='16' fill='%2300ff88' fill-opacity='0.15' stroke='%2300ff88' stroke-opacity='0.28'/><path d='M30 55 L45 40 L55 50 L70 30' stroke='%2300ff88' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "./Odds-Reader-TEST-12.html",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}
