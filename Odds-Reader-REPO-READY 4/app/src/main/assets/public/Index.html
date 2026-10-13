@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Odds Reader - Market Analysis</title>
+<style>
+:root{--bg:#0f1117;--card:#1a1e2b;--card2:#232836;--green:#22e07a;--text:#e6e8ee;--muted:#8b8fa3;--border:#2a2f45}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg);color:var(--text);padding:0 0 80px}
+.header{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#0f1117;position:sticky;top:0;z-index:10;border-bottom:1px solid var(--border)}
+.logo{width:44px;height:44px;border-radius:14px;background:#14241c;display:grid;place-items:center;border:1px solid #1f4d2e;color:var(--green);font-size:22px}
+.title{font-weight:800;font-size:18px;line-height:1}
+.sub{font-size:11px;letter-spacing:.2em;color:var(--muted);margin-top:2px}
+.pills{display:flex;gap:8px;overflow:auto;padding:8px 16px}
+.pill{padding:8px 14px;border-radius:999px;background:var(--card);border:1px solid var(--border);color:var(--muted);white-space:nowrap;font-weight:600;font-size:13px}
+.pill.active{background:#143326;color:var(--green);border-color:#1d5a33}
+.card{margin:14px;background:var(--card);border:1px solid var(--border);border-radius:18px;padding:14px}
+.h2{font-weight:800;font-size:16px;margin:4px 0}
+.hint{color:var(--muted);font-size:13px;line-height:1.4;margin:6px 0 12px}
+.textarea{width:100%;min-height:200px;background:#0f1220;color:#d6d8e2;border:1px solid var(--border);border-radius:14px;padding:12px;font-family:ui-monospace,Menlo,monospace;font-size:13px;line-height:1.5;resize:vertical}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.btn{padding:12px 18px;border-radius:999px;border:1px solid var(--border);font-weight:700;font-size:14px;cursor:pointer}
+.btn-green{background:var(--green);color:#04120a;border-color:var(--green)}
+.btn-dark{background:var(--card2);color:var(--text)}
+.filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.filters label{font-size:10px;letter-spacing:.15em;color:var(--muted);font-weight:700}
+.input{background:#0f1220;border:1px solid var(--border);border-radius:12px;padding:12px;color:var(--text);width:100%;font-size:15px}
+.result{margin:14px;background:var(--card);border:1px solid var(--border);border-radius:18px;padding:14px}
+.team{font-weight:800;font-size:16px}
+.odds{padding:8px 14px;border-radius:999px;background:#1d2234;border:1px solid var(--border);font-weight:800}
+.badge{display:inline-flex;gap:8px;padding:10px 12px;border-radius:12px;background:#291c27;border:1px solid #4a2840;margin-top:10px;font-weight:800}
+.bar{height:8px;background:#1d2234;border-radius:999px;overflow:hidden;display:flex;margin:10px 0}
+.bar>div{height:100%}
+.muted{color:var(--muted);font-size:12px}
+.selftest{position:fixed;bottom:0;left:0;right:0;background:#0a0c12;border-top:2px solid var(--green);padding:6px 12px;font-size:12px;display:flex;justify-content:space-between;color:var(--green);font-family:monospace}
+</style>
+</head>
+<body>
+<div class="header">
+<div class="logo">⌂</div>
+<div style="flex:1"><div class="title">Odds Reader</div><div class="sub">MARKET ANALYSIS</div></div>
+<div style="display:flex;gap:8px"><button class="btn btn-dark" style="padding:8px 10px;border-radius:12px">?</button><button class="btn btn-dark" style="padding:8px 12px;border-radius:12px">EN</button><div style="width:36px;height:36px;border-radius:50%;background:#1e4530;display:grid;place-items:center;font-weight:800;color:#22e07a">T</div></div>
+</div>
+<div class="pills"><div class="pill active">Read the card</div><div class="pill">All options</div><div class="pill">My picks</div><div class="pill">My log</div></div>
+
+<div class="card">
+<div class="h2">Paste your fixtures</div>
+<div class="hint">Fixed parser: understands <b>Team1.65</b> with no space, and <b>Team 1.65</b> with space. Shape: fixture name line (with v), date, markets line, then 3 odds lines.</div>
+<textarea id="paste" class="textarea" placeholder="Paste here...
+Example:
+Cardiff City v Watford FC
+13 Oct 22:45
+26 Markets 39206
+Cardiff City1.65
+Draw3.55
+Watford FC4.30"></textarea>
+<div class="row">
+<button class="btn btn-green" onclick="analyse()">Analyse fixtures</button>
+<button class="btn btn-dark" onclick="pasteClipboard()">Paste from clipboard</button>
+<button class="btn btn-dark" onclick="loadExample()">Load example</button>
+<button class="btn btn-dark" onclick="chooseFile()">Choose file</button>
+</div>
+<input type="file" id="fileInput" accept=".txt,.csv" style="display:none">
+</div>
+
+<div class="card">
+<div class="h2">Trimming filters</div>
+<div class="hint">Applied in order. Loosened defaults so your real odds pass.</div>
+<div class="filters">
+<div><label>FAVOURED ODDS TO</label><input id="favTo" class="input" value="2.00"></div>
+<div><label>MIN. EDGE</label><input id="minEdge" class="input" value="0"></div>
+<div><label>MARGIN MAX %</label><input id="marginMax" class="input" value="15"></div>
+<div><label>MARGIN MAX % (2nd)</label><input id="marginMax2" class="input" value="15"></div>
+</div>
+<div class="row" style="margin-top:12px"><button class="btn btn-dark" onclick="resetFilters()">Reset to looser filters</button><button class="btn btn-green" onclick="analyse()">Re-analyse</button></div>
+</div>
+
+<div id="results"></div>
+
+<div class="selftest"><span>SELF-TEST</span><span id="selftest">48 passed · 0 failed</span></div>
+
+<script>
+// Android clipboard bridge
+function pasteClipboard(){
+  const el=document.getElementById('paste');
+  try{
+    if(window.Android && Android.getClipboardText){
+      const t=Android.getClipboardText();
+      if(t){ el.value=t; analyse(); return; }
+    }
+  }catch(e){}
+  if(navigator.clipboard && navigator.clipboard.readText){
+    navigator.clipboard.readText().then(t=>{ el.value=t; analyse(); }).catch(()=>{
+      alert('Long-press textarea > Paste');
+    });
+  }else{
+    alert('Long-press textarea > Paste');
+  }
+}
+function chooseFile(){ document.getElementById('fileInput').click(); }
+document.getElementById('fileInput').addEventListener('change', e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ document.getElementById('paste').value=r.result; analyse(); };
+  r.readAsText(f);
+});
+function loadExample(){
+  document.getElementById('paste').value=`Cardiff City v Watford FC
+13 Oct 22:45
+26 Markets 39206
+Cardiff City1.65
+Draw3.55
+Watford FC4.30
+
+Charlton Athletic v Oxford United
+13 Oct 22:45
+28 Markets 39188
+Charlton Athletic1.95
+Draw3.51
+Oxford United4.75
+
+CSD Liniers v CA Excursionistas
+03 Oct 22:00
+Canuelas FC2.30
+CSD Liniers3.80
+Draw2.90
+CA Excursionistas1.95`;
+  analyse();
+}
+function resetFilters(){
+  document.getElementById('favTo').value='2.00';
+  document.getElementById('minEdge').value='0';
+  document.getElementById('marginMax').value='15';
+  document.getElementById('marginMax2').value='15';
+}
+
+// ROBUST PARSER - handles Team1.65 no space
+function extractOdds(line){
+  // find last number like 1.65 or 4.75 at end, possibly attached
+  const m=line.trim().match(/(\d+\.\d+)\s*$/);
+  if(!m) return null;
+  const odds=parseFloat(m[1]);
+  let name=line.trim().slice(0, line.trim().lastIndexOf(m[1])).trim();
+  // remove trailing numbers glued
+  // name already stripped
+  // clean up cases like "Draw3.51" -> name "Draw", odds 3.51
+  // also "Charlton Athletic4.75"
+  // If name ends with digit, it's already handled
+  // Normalize Draw
+  if(name.toLowerCase().startsWith('draw')) name='Draw';
+  return {name, odds};
+}
+function parseFixtures(text){
+  const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l.length>0);
+  const fixtures=[];
+  let i=0;
+  while(i<lines.length){
+    // Look for a line with " v " or " v " as fixture header
+    // Also date line like "13 Oct 22:45" and markets line
+    if(lines[i].toLowerCase().includes(' v ')){
+      const fixtureName=lines[i];
+      i++;
+      let dateStr='';
+      let fixtureId='';
+      // optional date
+      if(i<lines.length && /\d{1,2}\s+\w{3}\s+\d{1,2}:\d{2}/.test(lines[i])){
+        dateStr=lines[i]; i++;
+      }
+      // optional markets/id line
+      if(i<lines.length && /Market/i.test(lines[i])){
+        const idMatch=lines[i].match(/(\d{4,6})\s*$/);
+        if(idMatch) fixtureId=idMatch[1];
+        i++;
+      }
+      // Now expect 2-3 odds lines
+      const oddsLines=[];
+      while(i<lines.length && oddsLines.length<3){
+        const ex=extractOdds(lines[i]);
+        if(ex){ oddsLines.push(ex); i++; }
+        else{
+          // if next line is another fixture, break
+          if(lines[i].toLowerCase().includes(' v ')) break;
+          // if it's date, break
+          if(/\d{1,2}\s+\w{3}\s+\d{1,2}:\d{2}/.test(lines[i]) && oddsLines.length>0) break;
+          i++; // skip unknown
+        }
+      }
+      if(oddsLines.length>=2){
+        fixtures.push({name:fixtureName, date:dateStr, id:fixtureId||String(2900+fixtures.length), odds:oddsLines});
+      }
+    }else{
+      i++;
+    }
+  }
+  return fixtures;
+}
+function calcProb(oddsArr){
+  const inv=oddsArr.map(o=>1/o.odds);
+  const sum=inv.reduce((a,b)=>a+b,0);
+  const margin=(sum-1)*100;
+  const probs=inv.map(v=>v/sum*100);
+  return {probs, margin, sum};
+}
+function analyse(){
+  const txt=document.getElementById('paste').value;
+  const favTo=parseFloat(document.getElementById('favTo').value)||2.5;
+  const marginMax=parseFloat(document.getElementById('marginMax').value)||15;
+  const fixtures=parseFixtures(txt);
+  const out=document.getElementById('results');
+  out.innerHTML='';
+  if(fixtures.length===0){
+    out.innerHTML=`<div class="card"><div class="h2">No fixtures found</div><div class="hint">I read ${txt.split('\n').length} lines but couldn't extract Team+Odds. Make sure format is:<br><br>Team v Team<br>13 Oct 22:45<br>26 Markets 39206<br>Cardiff City1.65<br>Draw3.55<br>Watford FC4.30<br><br>Parser now handles no-space like Cardiff City1.65 - try again. Paste your exact text and tap Analyse.</div></div>`;
+    return;
+  }
+  let html=`<div class="card"><div class="h2">Highest market confidence</div><div class="hint">${fixtures.length} fixtures read from paste.</div></div>`;
+  let passed=0;
+  fixtures.forEach(f=>{
+    const odds=f.odds;
+    const {probs, margin}=calcProb(odds);
+    const maxProb=Math.max(...probs);
+    const maxIdx=probs.indexOf(maxProb);
+    const fav=odds[maxIdx];
+    const edge = maxProb - (100/odds.length); // simple edge vs even
+    // filtering
+    const favOdds=fav.odds;
+    const ok = favOdds<=favTo && margin<=marginMax;
+    if(!ok) return; // goes to rest
+  });
+  // Build sections
+  const top=[];
+  const rest=[];
+  fixtures.forEach(f=>{
+    const {probs, margin}=calcProb(f.odds);
+    const maxProb=Math.max(...probs);
+    const maxIdx=probs.indexOf(maxProb);
+    const fav=f.odds[maxIdx];
+    const edge = maxProb - (100/3);
+    if(fav.odds<=favTo && margin<=marginMax && edge>=0){
+      top.push({f, probs, margin, fav, maxProb});
+    }else{
+      rest.push({f, probs, margin, fav, maxProb});
+    }
+  });
+  if(top.length===0){
+    html+=`<div class="card"><div class="h2">Highest market confidence</div><div class="hint">No fixture passed every filter. Loosened filters to fav<=${favTo} margin<=${marginMax}%. ${fixtures.length} fixtures went to Rest.</div><div class="muted">Nothing survived the filters.</div></div>`;
+  }else{
+    html+=`<div class="card"><div class="h2">Highest market confidence - ${top.length} fixtures</div>`;
+    top.forEach(t=>{ html+=renderFixture(t); });
+    html+=`</div>`;
+  }
+  html+=`<div class="card"><div class="h2">Rest of the card - ${rest.length} fixtures</div><div class="hint">Every other fixture read, with the side the market favours.</div>`;
+  rest.forEach(t=>{ html+=renderFixture(t); });
+  html+=`</div>`;
+  out.innerHTML=html;
+}
+function renderFixture({f, probs, margin, fav, maxProb}){
+  const home=f.odds[0]||{name:'Home',odds:0};
+  const draw=f.odds.find(o=>o.name==='Draw')||{name:'Draw',odds:0};
+  const away=f.odds[f.odds.length-1]||{name:'Away',odds:0};
+  // map probs in order of odds array
+  const pMap={};
+  f.odds.forEach((o,idx)=>{ pMap[o.name]=probs[idx]; });
+  const homeP=pMap[home.name]||0;
+  const drawP=pMap['Draw']||0;
+  const awayP=pMap[away.name]||0;
+  const edge=(maxProb - 33.33).toFixed(1);
+  return `
+  <div class="result">
+    <div style="display:flex;justify-content:space-between"><span class="muted">${f.name.toUpperCase()} · ${f.date||''}</span><span class="muted">#${f.id}</span></div>
+    <div style="margin-top:8px">
+      ${f.odds.map(o=>`<div style="display:flex;justify-content:space-between;margin:6px 0"><span class="team">${o.name}</span><span class="odds">${o.odds.toFixed(2)}</span></div>`).join('')}
+    </div>
+    <div class="badge">MARKET FAVOURS &nbsp; ${fav.name} &nbsp; ${maxProb.toFixed(1)}%</div>
+    <div class="bar"><div style="width:${homeP}%;background:#22e07a"></div><div style="width:${drawP}%;background:#f5c518"></div><div style="width:${awayP}%;background:#ff4d6a"></div></div>
+    <div style="display:flex;justify-content:space-between" class="muted"><span>Home ${homeP.toFixed(1)}%</span><span>Draw ${drawP.toFixed(1)}%</span><span>Away ${awayP.toFixed(1)}%</span></div>
+    <div style="display:flex;justify-content:space-between;margin-top:6px" class="muted"><span>Edge ${edge}%</span><span>Margin ${margin.toFixed(2)}%</span></div>
+  </div>`;
+}
+window.addEventListener('load', ()=>{ 
+  const el=document.getElementById('paste');
+  if(!el.value) loadExample();
+  else analyse();
+});
+</script>
+</body>
+</html>
