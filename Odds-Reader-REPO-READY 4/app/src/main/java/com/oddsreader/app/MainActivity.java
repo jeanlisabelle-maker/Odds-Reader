@@ -1,4 +1,3 @@
-Java
 package com.oddsreader.app;
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -85,3 +84,4 @@ public class MainActivity extends Activity {
         else super.onBackPressed();
     }
 }
+
