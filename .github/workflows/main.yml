@@ -1,8 +1,13 @@
 name: Build Odds Reader APK
 on: [push, workflow_dispatch]
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # to publish the test app to the test-builds branch
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
@@ -17,3 +22,15 @@ jobs:
         with:
           name: OddsReader-APK
           path: Odds-Reader-REPO-READY 4/app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish test app to the test-builds branch (one file, replaced each build)
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -e
+          mkdir -p out
+          cp "Odds-Reader-REPO-READY 4/app/build/outputs/apk/debug/app-debug.apk" out/OddsReader-test.apk
+          cd out
+          git init -q -b test-builds
+          git add OddsReader-test.apk
+          git -c user.name="CI" -c user.email="ci@example.invalid" commit -q -m "Odds Reader test app from ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" test-builds

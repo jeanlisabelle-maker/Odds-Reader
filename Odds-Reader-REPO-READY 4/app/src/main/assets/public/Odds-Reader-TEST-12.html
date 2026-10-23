@@ -1093,14 +1093,66 @@ Arsenal de Sar...2.15
 
   function numAtEnd(s){ var m = String(s).match(/(\d+(?:\.\d+)?)\s*$/); return m ? parseFloat(m[1]) : null; }
   function stripOdds(s){ return String(s).replace(/(\d+(?:\.\d+)?)\s*$/, "").trim(); }
-  function parse(raw){
-    var lines = raw.split(/\r?\n/).map(function(l){ return l.trim(); });
-    var out = [], comp = "", bad = 0;
+  // INTEGRITY GATE shared by both layouts: reject physically impossible prices
+  function pricesOk(h, d, a){
+    if (!h || !d || !a) return false;
+    if (h > 100 || d > 100 || a > 100 || h < 1.01 || d < 1.01 || a < 1.01) return false;
+    var s0 = 1/h + 1/d + 1/a;
+    return s0 >= 0.98 && s0 <= 1.25;
+  }
+  var VS_RE = /\s(v|vs\.?)\s/i;
+  var KO_RE = /^\d{1,2}\s+[A-Za-z]{3}\s+\d{1,2}:\d{2}$/;
+
+  // Second layout ("Team A v Team B" fixtures), e.g.
+  //   Cardiff City v Watford FC / 13 Oct 22:45 / 26 Markets 39206 /
+  //   Cardiff City1.65 / Draw3.55 / Watford FC4.30
+  function parseVersus(lines){
+    var out = [], bad = 0, comp = "";
     for (var i=0; i<lines.length; i++){
       var l = lines[i];
       if (!l) continue;
+      if (!VS_RE.test(l)){
+        if (/^[A-Za-z]/.test(l) && numAtEnd(l) === null && !/^draw/i.test(l)) comp = l;
+        continue;
+      }
+      var parts = l.split(VS_RE), homeName = parts[0].trim(), awayName = parts[parts.length-1].trim();
+      var j = i + 1, ko = "", id = "";
+      if (j < lines.length && KO_RE.test(lines[j])){ ko = lines[j]; j++; }
+      if (j < lines.length && /market/i.test(lines[j])){ var m = lines[j].match(/(\d{3,})\s*$/); if (m) id = m[1]; j++; }
+      var h = null, d = null, a = null, others = [], n = 0;
+      while (j < lines.length && !VS_RE.test(lines[j]) && !KO_RE.test(lines[j]) && n++ < 4){
+        var ln = lines[j], o = numAtEnd(ln);
+        if (o !== null && /^[A-Za-z]/.test(ln)){
+          var nm = stripOdds(ln).replace(/\.+$/, "").trim();
+          if (/^draw$/i.test(nm)) d = o;
+          else if (homeName.toLowerCase().indexOf(nm.toLowerCase()) === 0 && nm) h = o;
+          else if (awayName.toLowerCase().indexOf(nm.toLowerCase()) === 0 && nm) a = o;
+          else others.push(o);
+        } else if (ln) { break; }
+        j++;
+      }
+      // names that didn't match: first unmatched is home, last is away
+      if (h === null && others.length) h = others.shift();
+      if (a === null && others.length) a = others.pop();
+      i = j - 1;
+      if (!pricesOk(h, d, a)){ bad++; continue; }
+      out.push({ comp: comp || "Unclassified", ko: ko, id: id || String(out.length + 1),
+        home: homeName || "Home", away: awayName || "Away", h: h, d: d, a: a });
+    }
+    return { rows: out, bad: bad };
+  }
+
+  function parse(raw){
+    var lines = raw.split(/\r?\n/).map(function(l){ return l.trim(); });
+    var vs = parseVersus(lines);
+    var out = vs.rows.slice(), comp = "", bad = vs.bad;
+    for (var i=0; i<lines.length; i++){
+      var l = lines[i];
+      if (!l) continue;
+      if (VS_RE.test(l)) continue; // handled by parseVersus
       if (/^[A-Za-z]/.test(l) && l.indexOf("Draw") === -1 && !/^\d{2}\s/.test(l)){ comp = l; continue; }
-      if (!/^\d{2}\s[A-Z]{3}\s\d{2}:\d{2}$/.test(l)) continue;
+      if (!/^\d{2}\s[A-Za-z]{3}\s\d{2}:\d{2}$/.test(l)) continue;
+      if (i > 0 && VS_RE.test(lines[i-1])) continue; // date line of a "v" fixture
       var id = lines[i+1] || "", hLine = lines[i+2] || "", aLine = lines[i+3] || "";
       if (hLine.indexOf("Draw") === -1){ bad++; continue; }
       var di = hLine.indexOf("Draw");
@@ -1324,7 +1376,8 @@ Arsenal de Sar...2.15
   try {
     var q = new URLSearchParams(location.search);
     var shared = q.get("share") || q.get("text") || q.get("url");
-    if (shared) acceptShared(shared, t("shFrom"));
+    // wait until start-up (language setup) has finished, or it clears the results
+    if (shared) setTimeout(function(){ acceptShared(shared, t("shFrom")); }, 0);
   } catch(e){}
 
   // --- 3. Drag and drop (works on desktop; harmless on mobile) ---
@@ -1350,6 +1403,13 @@ Arsenal de Sar...2.15
   var rowEl = $("go") && $("go").parentNode;
   if (rowEl) rowEl.insertBefore(clipBtn, $("demo"));
   clipBtn.onclick = function(){
+    // Inside the Android app the browser clipboard API is blocked — ask the app instead
+    try {
+      if (window.Android && window.Android.getClipboardText){
+        var cx = window.Android.getClipboardText();
+        if (cx){ $("in").value = cx; analyse(); return; }
+      }
+    } catch(e){}
     if (navigator.clipboard && navigator.clipboard.readText){
       navigator.clipboard.readText().then(function(x){
         if (x){ $("in").value = x; analyse(); }
@@ -2036,6 +2096,22 @@ Arsenal de Sar...2.15
 </div>
 <script>
 (function(){
+  // The self-test clicks through the app and writes test data (subscription, account,
+  // log entry, research note). Run it only when asked: open the page with ?selftest
+  if (!/[?&#]selftest/.test(location.href)){
+    var stBox = document.getElementById("selftest");
+    if (stBox) stBox.style.display = "none";
+    return;
+  }
+  // keep the user's real data safe: snapshot now, restore when the test ends
+  var saved = {};
+  try { for (var si=0; si<localStorage.length; si++){ var sk=localStorage.key(si); if (sk.indexOf("oddsreader.")===0) saved[sk]=localStorage.getItem(sk); } } catch(e){}
+  function restoreData(){
+    try {
+      Object.keys(localStorage).forEach(function(k){ if (k.indexOf("oddsreader.")===0) localStorage.removeItem(k); });
+      Object.keys(saved).forEach(function(k){ localStorage.setItem(k, saved[k]); });
+    } catch(e){}
+  }
   var out=[], pass=0, fail=0;
   function ok(n,v){ pass++; out.push('<div class="r"><span class="p">OK</span><span class="n">'+n+'</span><span class="val">'+v+'</span></div>'); }
   function no(n,v){ fail++; out.push('<div class="r"><span class="f">X</span><span class="n">'+n+'</span><span class="val">'+v+'</span></div>'); }
@@ -2169,6 +2245,16 @@ Arsenal de Sar...2.15
       sums.length && bad===0 ? ok("probabilities sum to 100%",sums.length+" checked") : no("probability sums",bad+" off");
     } catch(e){ no("parser and maths", e.message); }
 
+    /* 7b. "Team v Team" layout */
+    userClose();
+    try {
+      $("in").value="Cardiff City v Watford FC\n13 Oct 22:45\n26 Markets 39206\nCardiff City1.65\nDraw3.55\nWatford FC4.30\n\n" +
+        "CSD Liniers v CA Excursionistas\n03 Oct 22:00\nCanuelas FC2.30\nCSD Liniers3.80\nDraw2.90\nCA Excursionistas1.95";
+      $("go").click();
+      var vc=document.querySelectorAll("#strongest .fx, #rest .fx").length;
+      vc===2 ? ok("reads 'Team v Team' layout","2 fixtures") : no("'Team v Team' layout",vc+" read, expected 2");
+    } catch(e){ no("'Team v Team' layout", e.message); }
+
     /* 8. integrity gate */
     userClose();
     try {
@@ -2238,6 +2324,7 @@ Arsenal de Sar...2.15
     ok("viewport", window.innerWidth+"x"+window.innerHeight+" @"+(window.devicePixelRatio||1)+"x");
     ok("user agent", navigator.userAgent.slice(0,46));
 
+    restoreData();
     var sum = document.getElementById("st-sum");
     sum.textContent = pass+" passed · "+fail+" failed";
     sum.style.color = fail ? "#ff4d6d" : "#00ff88";

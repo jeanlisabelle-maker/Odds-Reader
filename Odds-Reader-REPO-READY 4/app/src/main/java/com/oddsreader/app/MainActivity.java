@@ -12,6 +12,7 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import org.json.JSONObject;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -61,7 +62,31 @@ public class MainActivity extends Activity {
                 return true;
             }
         });
-        webView.loadUrl("file:///android_asset/public/index.html");
+        // The full app. (index.html was a cut-down copy whose tabs did nothing.)
+        String url = APP_URL;
+        String shared = sharedText(getIntent());
+        if (shared != null) url += "?share=" + Uri.encode(shared);
+        webView.loadUrl(url);
+    }
+
+    private static final String APP_URL = "file:///android_asset/public/Odds-Reader-TEST-12.html";
+
+    /** Text sent to the app with Android's Share menu, or null. */
+    private static String sharedText(Intent intent) {
+        if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) return null;
+        CharSequence t = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
+        return (t == null || t.length() == 0) ? null : t.toString();
+    }
+
+    // App already open and the user shares more text into it
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        String shared = sharedText(intent);
+        if (shared != null && webView != null) {
+            webView.evaluateJavascript(
+                "window.OddsReaderShare && window.OddsReaderShare(" + JSONObject.quote(shared) + ")", null);
+        }
     }
 
     @Override
